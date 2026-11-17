@@ -1,0 +1,45 @@
+{
+  "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
+  "appId": "com.payslipstudio.app",
+  "productName": "Employee Database Studio",
+  "copyright": "Copyright © 2026 Employee Database Studio",
+  "directories": {
+    "output": "release",
+    "buildResources": "build"
+  },
+  "files": [
+    "dist/**/*",
+    "electron/**/*",
+    "package.json"
+  ],
+  "extraMetadata": {
+    "main": "electron/main.cjs"
+  },
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64"]
+      },
+      {
+        "target": "portable",
+        "arch": ["x64"]
+      }
+    ],
+    "icon": "build/icon.ico",
+    "legalTrademarks": "Employee Database Studio"
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "Employee Database Studio",
+    "uninstallDisplayName": "Employee Database Studio",
+    "deleteAppDataOnUninstall": false
+  },
+  "portable": {
+    "artifactName": "EmployeeDatabaseStudio-Portable-${version}.exe"
+  }
+}

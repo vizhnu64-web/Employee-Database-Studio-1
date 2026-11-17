@@ -1,0 +1,7 @@
+{
+  "name": "Employee Database Studio",
+  "description": "Employee Database Studio — Enterprise Cloud application for HR to manage complete employee records, import Excel payroll, map columns, validate salary math, preview, and generate professional PDF payslips.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
