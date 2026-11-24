@@ -1,4 +1,4 @@
-import { google } from 'googleapis';
+import { createSheetsApiClient, createDriveApiClient } from './googleClients.js';
 
 export class GoogleSheetsError extends Error {
   statusCode: number;
@@ -104,17 +104,14 @@ export function createGoogleSheetsClient(accessToken: string, spreadsheetId?: st
       401
     );
   }
-  const auth = new google.auth.OAuth2();
-  auth.setCredentials({ access_token: accessToken.trim() });
-
-  const sheets = google.sheets({ version: 'v4', auth });
-  const drive = google.drive({ version: 'v3', auth });
+  const cleanToken = accessToken.trim();
+  const sheets = createSheetsApiClient(cleanToken);
+  const drive = createDriveApiClient(cleanToken);
   const resolvedId = spreadsheetId ? extractSpreadsheetId(spreadsheetId) || spreadsheetId.trim() : null;
 
   return {
     sheets,
     drive,
-    auth,
     spreadsheetId: resolvedId,
     spreadsheetUrl: resolvedId ? buildCanonicalSpreadsheetUrl(resolvedId) : null,
   };

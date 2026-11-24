@@ -1,14 +1,14 @@
 import { Router, Response } from 'express';
 import multer from 'multer';
 import path from 'path';
-import { requireGoogleAccessToken, GoogleAuthRequest } from '../middleware/googleAuth';
+import { requireGoogleAccessToken, GoogleAuthRequest } from '../middleware/googleAuth.js';
 import {
   uploadFileToDrive,
   downloadFileFromDrive,
   deleteFileFromDrive,
   listDriveFolderFiles,
   createGoogleDriveClient,
-} from '../services/googleDrive';
+} from '../services/googleDrive.js';
 
 const router = Router();
 router.use(requireGoogleAccessToken);

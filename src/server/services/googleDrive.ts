@@ -1,5 +1,5 @@
-import { google } from 'googleapis';
 import { Readable } from 'stream';
+import { createDriveApiClient } from './googleClients.js';
 
 export class GoogleDriveError extends Error {
   statusCode: number;
@@ -53,15 +53,12 @@ export function createGoogleDriveClient(accessToken: string, rootFolderId?: stri
       401
     );
   }
-  const auth = new google.auth.OAuth2();
-  auth.setCredentials({ access_token: accessToken.trim() });
-  const drive = google.drive({ version: 'v3', auth });
+  const drive = createDriveApiClient(accessToken.trim());
 
   const resolvedFolderId = rootFolderId ? extractDriveFolderId(rootFolderId) || rootFolderId.trim() : null;
 
   return {
     drive,
-    auth,
     rootFolderId: resolvedFolderId,
     folderUrl: resolvedFolderId ? buildCanonicalDriveFolderUrl(resolvedFolderId) : null,
   };
@@ -150,7 +147,7 @@ export async function verifyAndLinkDriveFolder(
 }
 
 async function findOrCreateFolder(
-  drive: ReturnType<typeof google.drive>,
+  drive: ReturnType<typeof createDriveApiClient>,
   name: string,
   parentId?: string
 ): Promise<string> {

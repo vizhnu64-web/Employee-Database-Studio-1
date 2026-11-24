@@ -1,9 +1,9 @@
 import express from 'express';
 import path from 'path';
 import dotenv from 'dotenv';
-import { app } from './src/server/app';
-import { getResolvedSmtpConfig } from './src/server/routes/email';
-import { getPublicGoogleClientId } from './src/server/routes/googleAuth';
+import { app } from './src/server/app.js';
+import { getResolvedSmtpConfig } from './src/server/routes/email.js';
+import { getPublicGoogleClientId } from './src/server/routes/googleAuth.js';
 
 dotenv.config();
 

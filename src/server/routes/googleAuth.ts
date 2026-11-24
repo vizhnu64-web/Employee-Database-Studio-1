@@ -1,10 +1,28 @@
 import { Router, Request, Response } from 'express';
-import { google } from 'googleapis';
 import {
   requireGoogleAccessToken,
   GoogleAuthRequest,
   extractBearerToken,
-} from '../middleware/googleAuth';
+} from '../middleware/googleAuth.js';
+import {
+  GOOGLE_OAUTH_SCOPES,
+  RequestedScopeDetail,
+  getPublicGoogleClientId,
+  buildGoogleOAuthScopes,
+  buildRequestedScopeMetadata,
+  buildGoogleConfigPayload,
+} from '../googleConfig.js';
+import { createDriveApiClient } from '../services/googleClients.js';
+import { logServerError } from '../logger.js';
+
+export {
+  GOOGLE_OAUTH_SCOPES,
+  getPublicGoogleClientId,
+  buildGoogleOAuthScopes,
+  buildRequestedScopeMetadata,
+  buildGoogleConfigPayload,
+};
+export type { RequestedScopeDetail };
 
 const router = Router();
 
@@ -14,102 +32,9 @@ router.use((_req, res, next) => {
   next();
 });
 
-export const GOOGLE_OAUTH_SCOPES = {
-  identity: ['openid', 'email', 'profile'],
-  drive: 'https://www.googleapis.com/auth/drive.file',
-  sheets: 'https://www.googleapis.com/auth/spreadsheets',
-  gmail: 'https://www.googleapis.com/auth/gmail.send',
-} as const;
-
-export interface RequestedScopeDetail {
-  scope: string;
-  key: 'identity' | 'drive' | 'sheets' | 'gmail';
-  label: string;
-  reason: string;
-  verificationNote: string;
-  optional: boolean;
-  granted: boolean;
-}
-
-export function getPublicGoogleClientId(): string {
-  return String(
-    process.env.VITE_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || ''
-  ).trim();
-}
-
-export function buildGoogleOAuthScopes(options?: {
-  includeGmail?: boolean;
-  gmailOnly?: boolean;
-}): string[] {
-  const scopes = new Set<string>(GOOGLE_OAUTH_SCOPES.identity);
-  if (options?.gmailOnly) {
-    scopes.add(GOOGLE_OAUTH_SCOPES.gmail);
-    return Array.from(scopes);
-  }
-  scopes.add(GOOGLE_OAUTH_SCOPES.drive);
-  scopes.add(GOOGLE_OAUTH_SCOPES.sheets);
-  if (options?.includeGmail) {
-    scopes.add(GOOGLE_OAUTH_SCOPES.gmail);
-  }
-  return Array.from(scopes);
-}
-
-export function buildRequestedScopeMetadata(grantedScopes: string[]): RequestedScopeDetail[] {
-  const lower = grantedScopes.map((s) => s.toLowerCase());
-  const has = (kw: string) => lower.some((s) => s.includes(kw));
-
-  return [
-    {
-      scope: 'openid email profile',
-      key: 'identity',
-      label: 'Google Profile & Email Identity',
-      reason: 'Displays your signed-in HR Google account name, email address, and profile photo inside Employee Database Studio.',
-      verificationNote: 'Standard OpenID Connect identity scopes via Google Identity Services.',
-      optional: false,
-      granted: has('email') || has('openid') || has('userinfo.email') || lower.length > 0,
-    },
-    {
-      scope: GOOGLE_OAUTH_SCOPES.drive,
-      key: 'drive',
-      label: 'Private App & Selected Drive Folders (drive.file)',
-      reason: 'Stores employee documents, payslip PDFs, company logos, and backups strictly in the HR-linked or app-created Drive folder.',
-      verificationNote: 'Non-sensitive per-file Drive scope; never reads unrelated personal Drive files.',
-      optional: false,
-      granted: has('drive.file') || has('https://www.googleapis.com/auth/drive'),
-    },
-    {
-      scope: GOOGLE_OAUTH_SCOPES.sheets,
-      key: 'sheets',
-      label: 'Google Sheets Structured HR Database (spreadsheets)',
-      reason: 'Reads and updates the 10 structured HR worksheets inside your connected Employee Database Studio spreadsheet.',
-      verificationNote: 'Sensitive Google Sheets scope; consent granted explicitly by the HR user in Google Identity Services.',
-      optional: false,
-      granted: has('spreadsheets'),
-    },
-    {
-      scope: GOOGLE_OAUTH_SCOPES.gmail,
-      key: 'gmail',
-      label: 'HR Gmail Dispatch (gmail.send — Incremental Opt-in)',
-      reason: 'Allows HR to send individual employee payslip emails from their own Gmail mailbox as an alternative to Company SMTP.',
-      verificationNote: 'Requested incrementally only when HR enables Gmail payslip delivery. Company SMTP works independently without this scope.',
-      optional: true,
-      granted: has('gmail.send') || has('https://mail.google.com'),
-    },
-  ];
-}
-
 // GET /api/google/config - Public Google Identity Services Client ID & scope metadata (NEVER returns secrets)
 router.get('/config', (_req: Request, res: Response) => {
-  const clientId = getPublicGoogleClientId();
-  res.json({
-    success: true,
-    configured: Boolean(clientId),
-    clientId: clientId || null,
-    authModel: 'client_gis_in_memory',
-    defaultScopes: buildGoogleOAuthScopes(),
-    optionalGmailScope: GOOGLE_OAUTH_SCOPES.gmail,
-    requestedScopesMetadata: buildRequestedScopeMetadata([]),
-  });
+  res.json(buildGoogleConfigPayload());
 });
 
 // POST /api/google/verify-session - Validate an in-memory GIS OAuth access token & optional Google ID token
@@ -214,9 +139,13 @@ router.post('/verify-session', async (req: Request, res: Response) => {
       verifiedAt: new Date().toISOString(),
     });
   } catch (err: any) {
-    res.status(err?.statusCode || 500).json({
+    const status = err?.statusCode || 500;
+    if (status >= 500) {
+      logServerError('googleAuth:verify-session', err, req);
+    }
+    res.status(status).json({
       success: false,
-      error: err?.message || 'Failed to verify Google session.',
+      error: status >= 500 ? 'Internal server error.' : err?.message || 'Failed to verify Google session.',
     });
   }
 });
@@ -230,9 +159,7 @@ router.post('/test', requireGoogleAccessToken, async (req: GoogleAuthRequest, re
     const [tokenInfoRes, driveAbout] = await Promise.all([
       fetch(`https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=${encodeURIComponent(token)}`),
       (async () => {
-        const auth = new google.auth.OAuth2();
-        auth.setCredentials({ access_token: token });
-        const drive = google.drive({ version: 'v3', auth });
+        const drive = createDriveApiClient(token);
         return drive.about.get({ fields: 'user(emailAddress,displayName,photoLink)' });
       })(),
     ]);
@@ -272,12 +199,18 @@ router.post('/test', requireGoogleAccessToken, async (req: GoogleAuthRequest, re
     });
   } catch (err: any) {
     const status = err?.code || err?.response?.status || err?.statusCode || 500;
-    res.status(status).json({
+    const numericStatus = typeof status === 'number' && status >= 400 && status < 600 ? status : 500;
+    if (numericStatus >= 500) {
+      logServerError('googleAuth:test', err, req);
+    }
+    res.status(numericStatus).json({
       success: false,
       error:
-        status === 401
+        numericStatus === 401
           ? 'Google OAuth access token expired or revoked. Please sign in with Google again.'
-          : err?.message || 'Google API verification failed.',
+          : numericStatus >= 500
+            ? 'Internal server error.'
+            : err?.message || 'Google API verification failed.',
     });
   }
 });

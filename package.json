@@ -4,7 +4,11 @@
   "description": "Employee Database Studio — Enterprise Cloud HR Employee Database, Payroll & Vector PDF Payslip Generator",
   "author": "Employee Database Studio",
   "private": true,
+  "type": "module",
   "version": "1.0.0",
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "dev": "tsx server.ts",
     "start": "tsx server.ts",

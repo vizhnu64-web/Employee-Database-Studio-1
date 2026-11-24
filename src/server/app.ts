@@ -2,15 +2,16 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
-import settingsRoutes from './routes/settings';
-import employeeRoutes from './routes/employees';
-import documentRoutes from './routes/documents';
-import backupRoutes from './routes/backup';
-import emailRoutes, { getResolvedSmtpConfig } from './routes/email';
-import payrollRoutes from './routes/payroll';
-import googleAuthRoutes, { getPublicGoogleClientId } from './routes/googleAuth';
-import sheetsRoutes from './routes/sheets';
-import driveRoutes from './routes/drive';
+import settingsRoutes from './routes/settings.js';
+import employeeRoutes from './routes/employees.js';
+import documentRoutes from './routes/documents.js';
+import backupRoutes from './routes/backup.js';
+import emailRoutes, { getResolvedSmtpConfig } from './routes/email.js';
+import payrollRoutes from './routes/payroll.js';
+import googleAuthRoutes, { getPublicGoogleClientId } from './routes/googleAuth.js';
+import sheetsRoutes from './routes/sheets.js';
+import driveRoutes from './routes/drive.js';
+import { logServerError } from './logger.js';
 
 dotenv.config();
 
@@ -153,10 +154,11 @@ app.use((err: any, req: express.Request, res: express.Response, _next: express.N
   const status =
     err?.statusCode ||
     (err?.type === 'entity.parse.failed' ? 400 : err?.code === 'LIMIT_FILE_SIZE' ? 413 : 500);
-  const message = err?.message || 'Internal server error.';
-  console.error(`[Employee Database Studio API Error] ${req.method} ${req.path}:`, message);
+  logServerError('express:error-middleware', err, req);
+  const clientMessage =
+    status >= 500 ? 'Internal server error.' : err?.message || 'Request failed.';
   if (!res.headersSent) {
-    res.status(status).json({ success: false, error: message });
+    res.status(status).json({ success: false, error: clientMessage });
   }
 });
 

@@ -1,12 +1,12 @@
 import { Router, Response } from 'express';
-import { requireGoogleAccessToken, GoogleAuthRequest } from '../middleware/googleAuth';
-import { uploadFileToDrive, downloadFileFromDrive } from '../services/googleDrive';
+import { requireGoogleAccessToken, GoogleAuthRequest } from '../middleware/googleAuth.js';
+import { uploadFileToDrive, downloadFileFromDrive } from '../services/googleDrive.js';
 import {
   appendWorksheetRow,
   getWorksheetRows,
   upsertWorksheetRowVersioned,
   recordSyncLog,
-} from '../services/googleSheets';
+} from '../services/googleSheets.js';
 
 const router = Router();
 router.use(requireGoogleAccessToken);

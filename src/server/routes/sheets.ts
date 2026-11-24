@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { requireGoogleAccessToken, GoogleAuthRequest } from '../middleware/googleAuth';
+import { requireGoogleAccessToken, GoogleAuthRequest } from '../middleware/googleAuth.js';
 import {
   createGoogleSheetsClient,
   initializeMasterSpreadsheet,
@@ -15,7 +15,7 @@ import {
   WORKSHEET_SCHEMAS,
   REQUIRED_WORKSHEETS,
   WorksheetName,
-} from '../services/googleSheets';
+} from '../services/googleSheets.js';
 
 const router = Router();
 router.use(requireGoogleAccessToken);

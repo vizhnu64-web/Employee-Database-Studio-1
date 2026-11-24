@@ -1,12 +1,12 @@
 import { Router, Response } from 'express';
 import nodemailer from 'nodemailer';
-import { google } from 'googleapis';
 import rateLimit from 'express-rate-limit';
 import {
   attachOptionalGoogleContext,
   GoogleAuthRequest,
-} from '../middleware/googleAuth';
-import { appendWorksheetRow, getWorksheetRows } from '../services/googleSheets';
+} from '../middleware/googleAuth.js';
+import { appendWorksheetRow, getWorksheetRows } from '../services/googleSheets.js';
+import { createGmailApiClient } from '../services/googleClients.js';
 
 const router = Router();
 router.use(attachOptionalGoogleContext);
@@ -624,9 +624,7 @@ router.post('/send', emailSendLimiter, async (req: GoogleAuthRequest, res: Respo
         });
       }
 
-      const auth = new google.auth.OAuth2();
-      auth.setCredentials({ access_token: accessToken });
-      const gmail = google.gmail({ version: 'v1', auth });
+      const gmail = createGmailApiClient(accessToken);
 
       const raw = buildMimeRawMessage({
         from: gmailState.gmailEmail,

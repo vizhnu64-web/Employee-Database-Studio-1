@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'http';
 import type { Express } from 'express';
+import { logServerError } from './logger.js';
 
 export interface VercelLikeRequest extends IncomingMessage {
   url?: string;
@@ -19,6 +20,14 @@ function getHeaderString(
   return null;
 }
 
+function safeParseUrl(raw: string): URL | null {
+  try {
+    return new URL(raw, 'http://localhost');
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Normalizes incoming URLs for the Vercel Serverless Function at /api/index.ts
  * so Express routes mounted under /api/* always receive their canonical path
@@ -26,7 +35,10 @@ function getHeaderString(
  */
 export function normalizeVercelApiRequestUrl(req: Pick<VercelLikeRequest, 'url' | 'headers'>): string {
   const rawUrl = typeof req.url === 'string' && req.url.trim() ? req.url.trim() : '/api';
-  const parsed = new URL(rawUrl, 'http://localhost');
+  const parsed = safeParseUrl(rawUrl);
+  if (!parsed) {
+    return '/api';
+  }
   let pathname = parsed.pathname || '/api';
 
   // Case 1: Proxy or rewrite forwarded the destination path (/api/index or /index)
@@ -43,12 +55,11 @@ export function normalizeVercelApiRequestUrl(req: Pick<VercelLikeRequest, 'url' 
       parsed.searchParams.delete('__path');
     }
 
-    if (headerOriginal) {
-      const originalUrl = new URL(headerOriginal, 'http://localhost');
+    const originalUrl = headerOriginal ? safeParseUrl(headerOriginal) : null;
+    if (originalUrl) {
       const originalPath = originalUrl.pathname || '/api';
       if (originalPath !== '/api/index' && originalPath !== '/api/index.ts') {
         pathname = originalPath;
-        // Preserve any query parameters present on the original header URL if missing
         originalUrl.searchParams.forEach((value, key) => {
           if (key !== '__path' && !parsed.searchParams.has(key)) {
             parsed.searchParams.append(key, value);
@@ -85,7 +96,17 @@ export function normalizeVercelApiRequestUrl(req: Pick<VercelLikeRequest, 'url' 
 
 export function createVercelApiHandler(expressApp: Express) {
   return function vercelApiHandler(req: VercelLikeRequest, res: ServerResponse) {
-    req.url = normalizeVercelApiRequestUrl(req);
-    return (expressApp as unknown as (req: IncomingMessage, res: ServerResponse) => void)(req, res);
+    try {
+      req.url = normalizeVercelApiRequestUrl(req);
+      return (expressApp as unknown as (req: IncomingMessage, res: ServerResponse) => void)(req, res);
+    } catch (err) {
+      logServerError('vercelRouting:handler', err, req);
+      if (!res.headersSent) {
+        res.statusCode = 500;
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-store');
+        res.end(JSON.stringify({ success: false, error: 'Internal server error.' }));
+      }
+    }
   };
 }

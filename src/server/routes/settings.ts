@@ -1,12 +1,12 @@
 import { Router, Response } from 'express';
 import multer from 'multer';
-import { requireGoogleAccessToken, GoogleAuthRequest } from '../middleware/googleAuth';
-import { uploadFileToDrive } from '../services/googleDrive';
+import { requireGoogleAccessToken, GoogleAuthRequest } from '../middleware/googleAuth.js';
+import { uploadFileToDrive } from '../services/googleDrive.js';
 import {
   getWorksheetRows,
   upsertWorksheetRowByKey,
   recordSyncLog,
-} from '../services/googleSheets';
+} from '../services/googleSheets.js';
 
 const router = Router();
 router.use(requireGoogleAccessToken);
