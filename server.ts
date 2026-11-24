@@ -1,105 +1,13 @@
 import express from 'express';
-import cors from 'cors';
 import path from 'path';
 import dotenv from 'dotenv';
-import rateLimit from 'express-rate-limit';
-import settingsRoutes from './src/server/routes/settings';
-import employeeRoutes from './src/server/routes/employees';
-import documentRoutes from './src/server/routes/documents';
-import backupRoutes from './src/server/routes/backup';
-import emailRoutes, { getResolvedSmtpConfig } from './src/server/routes/email';
-import payrollRoutes from './src/server/routes/payroll';
-import googleAuthRoutes, { getPublicGoogleClientId } from './src/server/routes/googleAuth';
-import sheetsRoutes from './src/server/routes/sheets';
-import driveRoutes from './src/server/routes/drive';
+import { app } from './src/server/app';
+import { getResolvedSmtpConfig } from './src/server/routes/email';
+import { getPublicGoogleClientId } from './src/server/routes/googleAuth';
 
 dotenv.config();
 
-const app = express();
 const PORT = process.env.PORT || 3000;
-
-// Trust first proxy (Cloud Run, Vercel, Load Balancers)
-app.set('trust proxy', 1);
-
-app.use(cors());
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
-
-const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 500,
-  standardHeaders: true,
-  legacyHeaders: false,
-  validate: {
-    xForwardedForHeader: false,
-    forwardedHeader: false,
-    trustProxy: false,
-  },
-});
-app.use('/api/', apiLimiter);
-
-// Stateless Health Check (never blocks startup or requires external DB)
-app.get('/api/health', (_req, res) => {
-  const clientIdConfigured = Boolean(getPublicGoogleClientId());
-  const smtp = getResolvedSmtpConfig();
-
-  res.status(200).json({
-    status: 'healthy',
-    app: 'Employee Database Studio Enterprise Cloud',
-    version: '3.0.0',
-    mode: process.env.NODE_ENV || 'development',
-    serverless: process.env.VERCEL === '1',
-    architecture: {
-      database: 'google_sheets',
-      fileStorage: 'google_drive',
-      authentication: 'google_identity_services_client_in_memory',
-      emailProviders: ['gmail_api', 'company_smtp'],
-    },
-    checks: {
-      googleOAuth: {
-        configured: clientIdConfigured,
-        authFlow: 'client_gis_in_memory',
-      },
-      googleSheets: {
-        provider: 'google-sheets',
-        statelessProxyReady: true,
-      },
-      googleDrive: {
-        provider: 'google-drive',
-        statelessProxyReady: true,
-      },
-      smtp: {
-        configured: smtp.isConfigured,
-        verified: smtp.isVerified,
-        source: smtp.source,
-      },
-    },
-    timestamp: new Date().toISOString(),
-  });
-});
-
-// Active Stateless API Routes (Google Workspace + SMTP proxies)
-app.use('/api/google', googleAuthRoutes);
-app.use('/api/sheets', sheetsRoutes);
-app.use('/api/drive', driveRoutes);
-app.use('/api/email', emailRoutes);
-app.use('/api/employees', employeeRoutes);
-app.use('/api/payroll', payrollRoutes);
-app.use('/api/documents', documentRoutes);
-app.use('/api/settings', settingsRoutes);
-app.use('/api/backup', backupRoutes);
-
-// Controlled JSON error handler
-app.use((err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  const status =
-    err?.statusCode ||
-    (err?.type === 'entity.parse.failed' ? 400 : err?.code === 'LIMIT_FILE_SIZE' ? 413 : 500);
-  const message = err?.message || 'Internal server error.';
-  console.error(`[Employee Database Studio API Error] ${req.method} ${req.path}:`, message);
-  if (!res.headersSent) {
-    res.status(status).json({ success: false, error: message });
-  }
-});
 
 function checkDeploymentEnvironment() {
   const googleClientId = getPublicGoogleClientId();

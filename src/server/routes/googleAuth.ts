@@ -8,6 +8,12 @@ import {
 
 const router = Router();
 
+// Never cache OAuth configuration or session verification responses on CDN/proxies
+router.use((_req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+});
+
 export const GOOGLE_OAUTH_SCOPES = {
   identity: ['openid', 'email', 'profile'],
   drive: 'https://www.googleapis.com/auth/drive.file',
@@ -115,6 +121,7 @@ router.post('/verify-session', async (req: Request, res: Response) => {
     if (!bearer && !idToken) {
       return res.status(401).json({
         success: false,
+        code: 'GOOGLE_AUTH_REQUIRED',
         error: 'Provide a Bearer Google OAuth access token or Google ID token to verify session.',
       });
     }
